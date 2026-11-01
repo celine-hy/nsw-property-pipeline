@@ -1,5 +1,8 @@
 # NSW Property Sales Pipeline
-![Tests](https://github.com/celine-hy/nsw-property-pipeline/actions/workflows/tests.yml/badge.svg)
+![Tests](https://github.com/celine-hy/nsw-property-pipeline/actions/workflows/tests.yml/badge.svg) ![Pages](https://github.com/celine-hy/nsw-property-pipeline/actions/workflows/pages.yml/badge.svg)
+
+**Live demo (synthetic data):** https://celine-hy.github.io/nsw-property-pipeline/
+
 > A batch data pipeline that ingests weekly NSW property sales data, cleans and quality-checks it, and produces suburb-level quarterly price and volume metrics.
 
 ## Problem
@@ -43,11 +46,14 @@ nsw-property-pipeline/
 │   ├── bronze.py         # Write bronze Parquet, manifest for incremental loads
 │   ├── silver.py         # Typing, enrichment, quality rules, deduplication
 │   ├── gold.py           # Dealing-level sales, suburb x quarter metrics
-│   ├── spark.py          # Local Spark session settings
+│   ├── config.py         # Data folder, set by PIPELINE_DATA_DIR (local or cloud)
+│   ├── spark.py          # Spark session: local, or the platform session on Databricks
 │   ├── run_bronze.py     # Entry point: unzip weekly files and ingest to bronze
 │   ├── run_silver.py     # Entry point: build silver sales and quarantine
 │   ├── run_gold.py       # Entry point: recompute gold quarters touched by new data
-│   └── run.py            # Entry point: run all layers and save a run report
+│   ├── run.py            # Entry point: run all layers and save a run report
+│   ├── synthetic.py      # Fake weekly zips with planted data problems (public demo)
+│   └── build_site.py     # Static results page for GitHub Pages
 ├── tests/                # pytest suite (made-up fixture data only)
 ├── notebooks/
 │   ├── 01_explore.ipynb  # Phase 1 data exploration
@@ -56,14 +62,16 @@ nsw-property-pipeline/
 │   ├── data-notes.md     # Source file format and data problems found
 │   ├── decisions.md      # Design decisions and trade-offs
 │   ├── problems-log.md   # Issues hit during development and fixes
-│   └── images/           # README charts
-├── .github/workflows/    # CI: run pytest on every push
-└── data/                 # Local only, not in Git (licence: CC BY-NC-ND 4.0)
-    ├── raw/              # Weekly zips from NSW Valuer General
-    ├── bronze/           # Parsed records as Parquet, all strings
-    ├── silver/           # Typed, cleaned, deduplicated sales + quarantine
-    ├── gold/             # Suburb x quarter metrics
-    └── reports/          # One JSON report per pipeline run
+│   └── images/           # README charts and screenshots
+├── .github/workflows/    # tests: pytest on every push; pages: synthetic run + public page
+├── data/                 # Local only, not in Git (licence: CC BY-NC-ND 4.0)
+│   ├── raw/              # Weekly zips from NSW Valuer General
+│   ├── bronze/           # Parsed records as Parquet, all strings
+│   ├── silver/           # Typed, cleaned, deduplicated sales + quarantine
+│   ├── gold/             # Suburb x quarter metrics
+│   └── reports/          # One JSON report per pipeline run
+├── data_synthetic/       # Local only: same layout, synthetic run
+└── site/                 # Local only: built results page
 ```
 
 ## How to run
@@ -89,6 +97,14 @@ This runs bronze → silver → gold and writes a run report to `data/reports/` 
 quarantine reasons and the quarters refreshed. Re-running is safe: unchanged files are skipped
 and gold only recomputes quarters touched by new data. Each layer can also be run on its own
 (`pipeline.run_bronze`, `pipeline.run_silver`, `pipeline.run_gold`).
+
+### Try it with synthetic data
+No download needed:
+
+    export PIPELINE_DATA_DIR=data_synthetic PYTHONPATH=src
+    python -m pipeline.synthetic
+    python -m pipeline.run
+    python -m pipeline.synthetic --check
 
 ## Data quality
 Rows that break a hard rule go to a quarantine table with the list of rules they failed,
@@ -121,6 +137,40 @@ This is why gold recomputes every quarter a new file touches, not only the curre
 Suburb-level price results are not published here because of the data licence
 (CC BY-NC-ND 4.0).
 
+## Cloud runs
+The same code runs in two places.
+
+| | Public demo | Private run |
+| --- | --- | --- |
+| Platform | GitHub Actions + GitHub Pages | Databricks Free Edition (serverless) |
+| Data | Synthetic, made by `pipeline.synthetic` | Real weekly files from NSW Valuer General |
+| Trigger | Every push to `main` | Scheduled job, Tuesdays 09:00 Sydney time |
+| Output | [Public results page](https://celine-hy.github.io/nsw-property-pipeline/) | Private dashboard (not shared, licence) |
+
+### Public demo with synthetic data
+The real data's licence does not allow publishing derived prices, so `pipeline.synthetic` writes
+fake weekly zips in the exact .DAT layout, with made-up suburbs and a fixed seed. Each week contains
+a known number of planted problems: missing property ids, missing or pre-2001 contract dates,
+in-file and cross-week duplicates, strata lots, multi-property dealings, late-arriving sales,
+long legal descriptions and areas in hectares.
+
+The `pages` workflow generates the data, runs the full pipeline, then checks the run report against
+the planted counts (542 records = 516 clean + 16 quarantined + 10 duplicates, 504 dealings). If any
+number differs, the workflow fails and the page is not updated.
+
+### Databricks
+- Data lives in a Unity Catalog volume; `PIPELINE_DATA_DIR` points the pipeline at it.
+- `get_spark()` uses the platform session on Databricks and a local session elsewhere. Serverless
+  turns ANSI mode on by default, so the pipeline sets it off to match local behaviour.
+- A notebook adds the repo's `src/` (a Databricks Git folder) to the path and calls `run.main()`;
+  a weekly job runs that notebook. Results matched the local run exactly.
+
+![Databricks job runs](docs/images/databricks_job_runs.jpg)
+
+**Lesson:** the first Databricks run took 8 minutes. Bronze writes one
+small Parquet file per .DAT file and record type (about 2,500 files), and cloud storage is slow at
+many small files. Writing one file per week would fix this.
+
 ## Design decisions
 See [docs/decisions.md](docs/decisions.md).
 
@@ -133,4 +183,5 @@ See [docs/problems-log.md](docs/problems-log.md).
 - Silver is fully rebuilt each run; fine at this size, not for many years of data.
 - If a corrected file moves a sale to a different quarter, the old quarter is not refreshed
   automatically; a full gold rebuild (delete `data/gold/`) fixes it.
-- Next: scheduling, and more history to validate the deduplication and quality rules.
+- Bronze writes many small files, which is slow on cloud storage (8 minutes on Databricks).
+- Next: one bronze file per week, and more history to validate the deduplication and quality rules.
