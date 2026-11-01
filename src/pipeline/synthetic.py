@@ -7,8 +7,11 @@ without the licensed data.
 
 Usage:
     PIPELINE_DATA_DIR=data_synthetic PYTHONPATH=src python -m pipeline.synthetic
+    (run the pipeline)
+    PIPELINE_DATA_DIR=data_synthetic PYTHONPATH=src python -m pipeline.synthetic --check
 """
 import argparse
+import json
 import random
 import zipfile
 from datetime import date, datetime, timedelta
@@ -175,9 +178,12 @@ def build_week(rng: random.Random, week: date, first_dealing: int,
                 primary_purpose="VACANT LAND")
 
     planted = {
-        "b_records": len(wb.rows),
-        "quarantine": 4,
-        "duplicates": 1 + len(repeats),
+        "bronze_sale_records": len(wb.rows),
+        "missing_property_id": 2,
+        "missing_contract_date": 1,
+        "contract_before_2001": 1,
+        "duplicates_removed": 1 + len(repeats),
+        "extra_dealing_rows": 2 + 1,  # strata: 3 rows -> 1 dealing; multi-property: 2 -> 1
     }
     return wb, normal, planted
 
@@ -203,10 +209,10 @@ def write_week(week: date, rows: list[tuple[str, dict]], raw_dir: Path) -> Path:
 
 
 def generate(weeks: int, seed: int, first_week: date, raw_dir: Path) -> dict:
-    """Write `weeks` weekly zips and return the planted totals."""
+    """Write `weeks` weekly zips and return the pipeline result we expect."""
     raw_dir.mkdir(parents=True, exist_ok=True)
     rng = random.Random(seed)
-    totals = {"b_records": 0, "quarantine": 0, "duplicates": 0}
+    totals: dict[str, int] = {}
     previous_normal: list = []
     dealing = 0
     for i in range(weeks):
@@ -214,23 +220,54 @@ def generate(weeks: int, seed: int, first_week: date, raw_dir: Path) -> dict:
         wb, previous_normal, planted = build_week(rng, week, dealing, previous_normal)
         dealing = wb.dealing
         write_week(week, wb.rows, raw_dir)
-        for key in totals:
-            totals[key] += planted[key]
-    totals["silver"] = totals["b_records"] - totals["quarantine"] - totals["duplicates"]
-    return totals
+        for key, value in planted.items():
+            totals[key] = totals.get(key, 0) + value
+    return expected_result(totals)
 
 
-def main() -> dict:
+def expected_result(totals: dict) -> dict:
+    """Turn planted counts into the numbers the run report should show."""
+    rules = ["missing_property_id", "missing_contract_date", "contract_before_2001"]
+    quarantined = sum(totals[rule] for rule in rules)
+    silver = totals["bronze_sale_records"] - quarantined - totals["duplicates_removed"]
+    return {
+        "bronze_sale_records": totals["bronze_sale_records"],
+        "quarantined": quarantined,
+        "silver_sales": silver,
+        "duplicates_removed": totals["duplicates_removed"],
+        "failed_rules": {rule: totals[rule] for rule in rules},
+        "dealings": silver - totals["extra_dealing_rows"],
+    }
+
+
+def check(data_dir: Path) -> None:
+    """Compare the latest run report with expected.json; exit with an error if they differ."""
+    expected = json.loads((data_dir / "expected.json").read_text())
+    report_path = max((data_dir / "reports").glob("run_*.json"))
+    report = json.loads(report_path.read_text())
+    actual = {**report["silver"], "dealings": report["gold"]["dealings"]}
+    wrong = {k: (v, actual.get(k)) for k, v in expected.items() if actual.get(k) != v}
+    if wrong:
+        raise SystemExit(f"Pipeline result differs from planted problems (expected, actual): {wrong}")
+    print(f"{report_path.name} matches the planted problems.")
+
+
+def main() -> None:
     parser = argparse.ArgumentParser(description="Write synthetic weekly PSI zip files.")
     parser.add_argument("--weeks", type=int, default=4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--first-week", type=date.fromisoformat, default=date(2026, 1, 5),
                         help="Monday of the first week, YYYY-MM-DD")
+    parser.add_argument("--check", action="store_true",
+                        help="Do not generate; check the latest run report instead")
     args = parser.parse_args()
-    totals = generate(args.weeks, args.seed, args.first_week, DATA_DIR / "raw")
+    if args.check:
+        check(DATA_DIR)
+        return
+    expected = generate(args.weeks, args.seed, args.first_week, DATA_DIR / "raw")
+    (DATA_DIR / "expected.json").write_text(json.dumps(expected, indent=2))
     print(f"Wrote {args.weeks} synthetic weeks to {DATA_DIR / 'raw'}")
-    print(f"Expected pipeline result: {totals}")
-    return totals
+    print(f"Expected pipeline result: {expected}")
 
 
 if __name__ == "__main__":

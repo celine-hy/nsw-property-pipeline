@@ -32,3 +32,5 @@ CLAUDE.md
 !tests/fixtures/*.DAT
 
 .vscode/
+
+site/
