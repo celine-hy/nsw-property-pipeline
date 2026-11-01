@@ -35,14 +35,32 @@
 - **Cause:** Markdown images need a leading `!`; without it they are links.
 - **Fix:** Added `!` before both image lines.
 
----
+## 2026-11-01 — Different Spark defaults on Databricks serverless
+- **Problem:** Code that works locally can behave differently on Databricks serverless.
+- **Cause:** Serverless runs with ANSI mode on by default. Under ANSI, a bad cast (for example a
+  malformed date or number) raises an error instead of returning null, while the local session
+  returns null and lets the quality rules quarantine the row.
+- **Fix:** Found while preparing the move, before the first run. `get_spark()` now applies the same
+  settings in both places (UTC time zone, `timeParserPolicy=CORRECTED`, `ansi.enabled=false`), so
+  local and cloud results match.
 
-## Block 5 → docs/data-notes.md: append to "Data problems found during exploration"
+## 2026-11-01 — `No module named 'pipeline'` in the Databricks notebook
+- **Problem:** `from pipeline import run` failed in the notebook.
+- **Cause:** The package lives in `src/pipeline/`. The notebook added the repo root to `sys.path`,
+  not `src/`, so Python could not find the package.
+- **Fix:** Added `<git folder>/src` to `sys.path`, the same thing `PYTHONPATH=src` does locally.
 
-### Found while building silver (2026-10-30, 4 weeks)
-- [x] Strata lots sold in one dealing share one property_id (the strata plan's parent property) and
-      differ by strata_lot_number and legal_description, e.g. 7 lots of SP96758 in one dealing.
-      unit_number can repeat across lots, so it cannot identify a lot.
-- [x] 8 sales appear twice inside the same file, identical except for sale_counter.
-- [x] 37 B records have no property_id (required field); they are quarantined.
-- [x] 2 contract dates are before 2001 (1926, 1976); quarantined as errors.
+## 2026-11-01 — First Databricks run took 8 minutes
+- **Problem:** The first full run took 8 minutes on Databricks. The next run took 2m23s, because
+  bronze skipped the files it had already loaded.
+- **Cause:** Bronze writes one small Parquet file per .DAT file and record type, about 2,500 files.
+  Cloud storage has a high cost per file, so many tiny files are slow (the "small files problem").
+- **Fix:** Not fixed yet. Results were correct, and the weekly job runtime is acceptable. Next step:
+  write one bronze file per week and record type.
+
+## 2026-11-01 — Badge broke after renaming the GitHub account
+- **Problem:** After changing the GitHub username, the README tests badge still pointed to the old
+  account name.
+- **Cause:** GitHub redirects old repository URLs, but links written in files keep the old name.
+- **Fix:** Searched the repo for the old name (`grep -rn`), updated the badge URL and the git remote.
+

@@ -112,6 +112,13 @@ The Z counts give a free quality check: counted rows must equal the trailer.
 
 ## Data problems found during exploration
 Sample: 4 weekly files (20260928, 20261005, 20261012, 20261019), 14,069 B records.
+### Found while building silver (2026-10-30, 4 weeks)
+- [x] Strata lots sold in one dealing share one property_id (the strata plan's parent property) and
+      differ by strata_lot_number and legal_description, e.g. 7 lots of SP96758 in one dealing.
+      unit_number can repeat across lots, so it cannot identify a lot.
+- [x] 8 sales appear twice inside the same file, identical except for sale_counter.
+- [x] 37 B records have no property_id (required field); they are quarantined.
+- [x] 2 contract dates are before 2001 (1926, 1976); quarantined as errors.
 
 ### Structure
 - [x] The 3-digit file name prefix is the district code (matches the A record).

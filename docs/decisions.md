@@ -1,7 +1,5 @@
 # Design decisions
 
-One entry per decision. Keep each short.
-
 ## 2026-10-26 — Use a conda environment instead of venv
 - **Context:** PySpark 3.5 only supports Java 8, 11 and 17. My Mac has Java 25 installed system-wide, and Python 3.11 was not installed.
 - **Options:**
