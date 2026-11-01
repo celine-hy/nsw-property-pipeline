@@ -1,5 +1,5 @@
 # NSW Property Sales Pipeline
-![Tests](https://github.com/Yue0131/nsw-property-pipeline/actions/workflows/tests.yml/badge.svg)
+![Tests](https://github.com/celine-hy/nsw-property-pipeline/actions/workflows/tests.yml/badge.svg)
 > A batch data pipeline that ingests weekly NSW property sales data, cleans and quality-checks it, and produces suburb-level quarterly price and volume metrics.
 
 ## Problem
