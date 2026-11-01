@@ -1,5 +1,6 @@
 """Build gold metrics from silver, recomputing only quarters touched by new loads."""
 from pathlib import Path
+from pipeline.config import DATA_DIR
 
 import pandas as pd
 from pyspark.sql import functions as F
@@ -7,9 +8,9 @@ from pyspark.sql import functions as F
 from pipeline.gold import quarters_to_refresh, suburb_quarter_metrics, to_dealings
 from pipeline.spark import get_spark
 
-SILVER_DIR = Path("data/silver/sales")
-METRICS_DIR = Path("data/gold/suburb_quarter")
-PROCESSED_PATH = Path("data/gold/_processed_loads.csv")
+SILVER_DIR = DATA_DIR / "silver" / "sales"
+METRICS_DIR = DATA_DIR / "gold" / "suburb_quarter"
+PROCESSED_PATH = DATA_DIR / "gold" / "_processed_loads.csv"
 
 
 def read_processed() -> set[tuple[str, str]]:

@@ -2,12 +2,13 @@
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
+from pipeline.config import DATA_DIR
 
 from pipeline.bronze import ingest_new_files
 
-RAW_DIR = Path("data/raw")
-EXTRACT_DIR = Path("data/extracted")
-BRONZE_DIR = Path("data/bronze")
+RAW_DIR = DATA_DIR / "raw"
+EXTRACT_DIR = DATA_DIR / "extracted"
+BRONZE_DIR = DATA_DIR / "bronze"
 
 
 def extract_zips(raw_dir: Path, extract_dir: Path) -> list[Path]:

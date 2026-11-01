@@ -1,14 +1,15 @@
 """Build silver sales from bronze: type, enrich, quality-check, deduplicate."""
 from pathlib import Path
+from pipeline.config import DATA_DIR
 
 from pyspark.sql import functions as F
 
 from pipeline.silver import dedupe_sales, enrich_sales, split_quality, type_sales
 from pipeline.spark import get_spark
 
-BRONZE_DIR = Path("data/bronze")
-SALES_DIR = Path("data/silver/sales")
-QUARANTINE_DIR = Path("data/silver/quarantine")
+BRONZE_DIR = DATA_DIR / "bronze"
+SALES_DIR = DATA_DIR / "silver" / "sales"
+QUARANTINE_DIR = DATA_DIR / "silver" / "quarantine"
 
 
 def main() -> dict:

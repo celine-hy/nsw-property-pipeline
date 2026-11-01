@@ -2,10 +2,11 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from pipeline.config import DATA_DIR
 
 from pipeline import run_bronze, run_gold, run_silver
 
-REPORT_DIR = Path("data/reports")
+REPORT_DIR = DATA_DIR / "reports"
 
 
 def main() -> None:
